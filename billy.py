@@ -308,6 +308,80 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await ctx.bot.send_message(chat.id, lang.get_cmds_text())
 
 
+async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = await check_username(user)
+    logger.debug("Вызвана команда /profile. Отправляю данные об пользователе. "
+                 f"Пользователь: {username}")
+    chat = update.effective_chat
+    lang = await check_language(update, ctx)
+    users = cur.execute("SELECT username FROM users").fetchall()
+    db_name = username,
+    if not any(ctx.args):
+        logger.debug("В вызванной команде нету аргументов. Отправляю сообщение"
+                     f" об ошибке. Пользователь: {username}")
+        await ctx.bot.send_message(chat.id, lang.empty_text)
+    elif len(ctx.args) >= 2:  # Проверка на лишние аргументы
+        logger.debug("В вызванной команде два или больше аргументов. Отправляю"
+                     f" сообщение об ошибке. Пользователь: {username}")
+        await ctx.bot.send_message(chat.id, lang.more_args_text)
+    else:
+        target = ctx.args[0].replace("@", "")
+        if db_name in users:
+            exp = cur.execute("SELECT exp FROM levels WHERE username=?",
+                              db_name).fetchone()[0]
+            lvl = exp / 5
+            db_target = (target,)
+            if db_target not in users:
+                logger.debug("В вызванной команде несуществующий пользователь."
+                             " Отправляю сообщение об ошибке. Несуществующий "
+                             f"пользователь: {ctx.args[0]}. Пользователь, "
+                             f"который вызвал команду: {username}")
+                await ctx.bot.send_message(chat.id, lang.error_args_text)
+            else:
+                logger.debug("В вызванной команде введено все правильно. "
+                             f"Отправляю сообщение. Пользователь: {username}")
+                db_id = cur.execute("SELECT id FROM users WHERE "
+                                    "username=?", db_target).fetchone()[0]
+                member = await chat.get_member(db_id)
+                if lvl < 5:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {25 - exp}")
+                elif 5 <= lvl < 10:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {50 - exp}")
+                elif 10 <= lvl < 20:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {100 - exp}")
+                elif 20 <= lvl < 35:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {175 - exp}")
+                elif 35 <= lvl < 50:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {250 - exp}")
+                elif 50 <= lvl < 100:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"Осталось до следующие уровня: {500 - exp}")
+                else:
+                    text = (f"Профиль {member.user.first_name}'а\n"
+                            f"Количество написаних сообщений: {exp}\n"
+                            f"Уровень: {lvl}\n"
+                            f"У тебя максимальный уровень")
+                await ctx.bot.send_message(chat.id, text)
+
+
 async def fisting(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     nickname = await check_username(user)
@@ -497,6 +571,7 @@ class Main:
         logger.debug("Создаю обработчики")
         self.__start_cmd_handler = CommandHandler("start", start)
         self.__help_cmd_handler = CommandHandler("help", help_cmd)
+        self.__profile_cmd_handler = CommandHandler("profile", profile)
         self.__fisting_cmd_handler = CommandHandler("fisting", fisting)
         self.__deep_cmd_handler = CommandHandler("deep", deep)
         self.__warm_cmd_handler = CommandHandler("warm", warm)
@@ -514,6 +589,7 @@ class Main:
             [
                 self.__start_cmd_handler,
                 self.__help_cmd_handler,
+                self.__profile_cmd_handler,
                 self.__fisting_cmd_handler,
                 self.__deep_cmd_handler,
                 self.__warm_cmd_handler,
