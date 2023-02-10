@@ -6,6 +6,7 @@ from os import path, makedirs
 from logging import getLogger, DEBUG, INFO, WARNING, StreamHandler,\
     FileHandler, Formatter
 from sqlite3 import connect, OperationalError
+from databases import Database
 import config
 from language import Russian, Ukraine
 
@@ -48,12 +49,13 @@ logger.addHandler(console)
 logger.addHandler(file)
 logger.addHandler(file2)
 
-con = connect(filename + ".sqlite")
-cur = con.cursor()
+db = Database(f"sqlite+aiosqlite:///{filename}.sqlite")
 
 
 # Создание таблиц (если их нет)
 def create_tables():
+    con = connect(filename + ".sqlite")
+    cur = con.cursor()
     try:
         cur.execute("SELECT * FROM users")
         cur.execute("SELECT * FROM levels")
@@ -76,6 +78,8 @@ def create_tables():
                     """)
     else:
         logger.debug(f"Игнорирование. Таблицы в {filename} уже существуют")
+    finally:
+        con.close()
 
 
 # Проверка на наличие никнейма у пользователя
@@ -109,32 +113,32 @@ async def check_language(
 
 # Проверка на наличие и берет уже существующий опыт
 async def check_exp(user: User) -> int:
+    await db.connect()
     name = await check_username(user)
     logger.debug(f"Получаю уровень. Пользователь: {name}")
     db_name = (name,)
-    data = (name, user.id)
-    db_users = cur.execute("SELECT username FROM levels").fetchall()
+    data = {"name": name, "user_id": user.id}
+    db_users = await db.fetch_all("SELECT username FROM levels")
     if not any(db_users):
         logger.info(f"Создание. В датабазе {filename}.sqlite, в таблице levels"
                     " нет ни одного пользователя")
-        cur.execute("INSERT INTO levels (username, id, exp) VALUES (?, ?, 1)",
-                    data)
-        con.commit()
+        await db.execute("INSERT INTO levels (username, id, exp) VALUES "
+                         "(?, ?, 1)", data)
         exp = 1
         return exp
     elif db_name in db_users:
         logger.debug("Данные найдены. Начинаю получать опыт. Пользователь: "
                      f"{name}")
-        exp = cur.execute("SELECT exp FROM levels WHERE username=?", db_name) \
-            .fetchone()[0]
-        return exp
+        data = {"name": name}
+        query = "SELECT exp FROM levels WHERE username=:name"
+        exp = await db.fetch_one(query, data)
+        return exp[0]
     else:
         logger.info(f"Данные не найдены. Создаю и добавляю данные в датабазу "
                     f"{filename}.sqlite, в таблицу levels. Пользователь: "
                     f"{name}")
-        cur.execute("INSERT INTO levels (username, id, exp) VALUES (?, ?, 1)",
-                    data)
-        con.commit()
+        await db.execute("INSERT INTO levels (username, id, exp) VALUES "
+                         "(:name, :user_id, 1)", data)
         exp = 1
         return exp
 
@@ -144,12 +148,9 @@ async def lvl_system(user: User) -> float:
     name = await check_username(user)
     logger.debug(f"Начинаю проверку уровня. Пользователь: {name}")
     exp = await check_exp(user)
-    data = (exp, name)
+    data = {"exp": exp, "name": name}
     logger.debug(f"Добавляю +1 к {exp}. Пользователь: {name}")
-    cur.execute("""
-                UPDATE levels SET exp=?+1 WHERE username=?
-                """, data)
-    con.commit()
+    await db.execute("UPDATE levels SET exp=:exp+1 WHERE username=:name", data)
     logger.debug(f"Начинаю повторную проверку уровня. Пользователь: {name}")
     exp = await check_exp(user)
     lvl = exp / 5
@@ -169,6 +170,7 @@ async def command_error(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # Проверка на "круглой цифры" в уровне
 async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await db.connect()
     if update.effective_user != ctx.bot:
         user = update.effective_user
         chat = update.effective_chat
@@ -176,13 +178,14 @@ async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         lang = await check_language(update, ctx)
         logger.debug("Новое сообщение. Начинаю проверку уровня. Пользователя: "
                      f"{username}")
-        db_users = cur.execute("SELECT username FROM users").fetchall()
+        db_users = await db.fetch_all("SELECT username FROM users")
         db_name = (username,)
-        data = (username, user.id)
+        data = {"username": username, "user_id": user.id}
         if not any(db_users):
             logger.info(f"В датабазе {filename}.sqlite, в таблице users пусто."
                         f" Начинаю добавлять данные. Данные: {data}")
-            cur.execute("INSERT INTO users (username, id) VALUES (?, ?)", data)
+            await db.execute("INSERT INTO users (username, id) VALUES "
+                             "(:username, :user_id)", data)
         elif db_name in db_users:
             logger.debug(f"В датабазе {filename}.sqlite, в таблице users "
                          f"пользователь {username} найден. Беру опыт")
@@ -190,7 +193,8 @@ async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.info(f"В датабазе {filename}.sqlite, в таблице users "
                         f"пользователя {username} нет. Начинаю добавлять "
                         f"данные. Данные: {data}")
-            cur.execute("INSERT INTO users (username, id) VALUES (?, ?)", data)
+            await db.execute("INSERT INTO users (username, id) VALUES "
+                             "(:username, :user_id)", data)
         if ctx.bot.id != update.effective_user.id:
             if not update.effective_user.is_bot:
                 lvl = await lvl_system(user)
@@ -218,6 +222,7 @@ async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     logger.debug(f"У пользователя {username} {lvl} "
                                  "уровень")
                     await ctx.bot.send_message(chat.id, lang.lvl_text)
+    await db.disconnect()
 
 
 # Шаблон для команд
@@ -234,7 +239,7 @@ async def template(
     logger.debug("Вызван шаблон команд. Начинаю получать пользователей этого "
                  "чата/группы/канала. Пользователь, который вызвал команду: "
                  f"{username}")
-    users = cur.execute("SELECT username FROM users").fetchall()
+    users = await db.fetch_all("SELECT username FROM users")
     if not any(ctx.args):
         logger.debug("В вызванной команде нету аргументов. Отправляю сообщение"
                      f" об ошибке. Пользователь: {username}")
@@ -265,12 +270,14 @@ async def template(
                                            + Russian.self1_text)
             await ctx.bot.send_sticker(chat.id, sticker)
         else:
-            db_target = (target,)
+            db_target = target,
+            sql_target = {"target": target}
             if db_target in users:
                 logger.debug("В вызванной команде введено все правильно. "
                              f"Отправляю сообщение. Пользователь: {username}")
-                db_id = cur.execute("SELECT id FROM users WHERE username=?",
-                                    db_target).fetchone()[0]
+                query = "SELECT id FROM users WHERE username=:target"
+                db_id = await db.fetch_one(query, sql_target)
+                db_id = db_id[0]
                 member = await chat.get_member(db_id)
                 await ctx.bot.send_message(chat.id, message + " "
                                            + member.user.first_name)
@@ -315,7 +322,7 @@ async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                  f"Пользователь: {username}")
     chat = update.effective_chat
     lang = await check_language(update, ctx)
-    users = cur.execute("SELECT username FROM users").fetchall()
+    users = await db.fetch_all("SELECT username FROM users")
     db_name = username,
     if not any(ctx.args):
         logger.debug("В вызванной команде нету аргументов. Отправляю сообщение"
@@ -327,9 +334,11 @@ async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ctx.bot.send_message(chat.id, lang.more_args_text)
     else:
         target = ctx.args[0].replace("@", "")
+        sql_username = {"username": username}
         if db_name in users:
-            exp = cur.execute("SELECT exp FROM levels WHERE username=?",
-                              db_name).fetchone()[0]
+            query = "SELECT exp FROM levels WHERE username=:username"
+            exp = await db.fetch_one(query, sql_username)
+            exp = exp[0]
             lvl = exp / 5
             db_target = (target,)
             if db_target not in users:
@@ -341,8 +350,10 @@ async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             else:
                 logger.debug("В вызванной команде введено все правильно. "
                              f"Отправляю сообщение. Пользователь: {username}")
-                db_id = cur.execute("SELECT id FROM users WHERE "
-                                    "username=?", db_target).fetchone()[0]
+                sql_target = {"target": target}
+                query = "SELECT id FROM users WHERE username=:target"
+                db_id = await db.fetch_one(query, sql_target)
+                db_id = db_id[0]
                 member = await chat.get_member(db_id)
                 if lvl < 5:
                     text = (f"Профиль {member.user.first_name}'а\n"
@@ -435,7 +446,7 @@ async def lvl_state(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         logger.debug("Аргументы существуют. Проверяю правильность аргументов. "
                      f"Пользователь: {nickname}")
-        users = cur.execute("SELECT username FROM levels").fetchall()
+        users = await db.fetch_all("SELECT username FROM users")
         target = ctx.args[0].replace("@", "")
         db_target = (target,)
         if db_target not in users:
@@ -448,11 +459,14 @@ async def lvl_state(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             logger.debug("Пользователь в аргументе существует. Отправляю "
                          "уровень этого пользователя. Пользователь: "
                          f"{nickname}")
-            db_id = cur.execute("SELECT id FROM levels WHERE username=?",
-                                db_target).fetchone()[0]
+            sql_target = {"target": target}
+            query = "SELECT id FROM users WHERE username=:target"
+            db_id = await db.fetch_one(query, sql_target)
+            db_id = db_id[0]
             member = await chat.get_member(db_id)
-            exp = cur.execute("SELECT exp FROM levels WHERE username=?",
-                              db_target).fetchone()[0]
+            query = "SELECT exp FROM levels WHERE username=:target"
+            exp = await db.fetch_one(query, sql_target)
+            exp = exp[0]
             lvl = exp / 5
             lang = await check_language(update, ctx, member=member, lvl=lvl)
             await ctx.bot.send_message(chat.id, lang.lvl_cmd_text)
@@ -535,10 +549,10 @@ async def db_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             try:
                 if ctx.args[0] == "users":
                     logger.warning("Сбрасываю таблицу users")
-                    cur.execute("DROP TABLE users")
+                    await db.execute("DROP TABLE users")
                 elif ctx.args[0] == "levels":
                     logger.warning("Сбрасываю таблицу levels")
-                    cur.execute("DROP TABLE levels")
+                    await db.execute("DROP TABLE levels")
             except IndexError:
                 pass
             create_tables()
