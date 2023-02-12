@@ -577,7 +577,7 @@ async def test(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # Класс для более удобного и простого запуска
-class Main:
+class Start:
 
     def __init__(self):
         logger.debug("Создаю Application")
@@ -638,10 +638,10 @@ class Main:
 
 
 if __name__ == "__main__":
-    m = Main()
+    st = Start()
     logger.debug("Проверяю таблицы")
     create_tables()
-    m.add_public_handlers()
-    m.add_private_handlers()
-    m.add_message_handlers()
-    m.start()
+    st.add_public_handlers()
+    st.add_private_handlers()
+    st.add_message_handlers()
+    st.start()
