@@ -175,7 +175,6 @@ async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         user = update.effective_user
         chat = update.effective_chat
         username = await check_username(user)
-        lang = await check_language(update, ctx)
         logger.debug("Новое сообщение. Начинаю проверку уровня. Пользователя: "
                      f"{username}")
         db_users = await db.fetch_all("SELECT username FROM users")
@@ -198,6 +197,7 @@ async def level(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if ctx.bot.id != update.effective_user.id:
             if not update.effective_user.is_bot:
                 lvl = await lvl_system(user)
+                lang = await check_language(update, ctx, user, lvl=lvl)
                 if lvl == 5:
                     logger.debug(f"У пользователя {username} {lvl} "
                                  "уровень")
@@ -264,10 +264,10 @@ async def template(
                          f"{username}")
             if update.message.text.startswith("/warm"):
                 await ctx.bot.send_message(chat.id, message
-                                           + Russian.self2_text)
+                                           + lang.self2_text)
             else:
                 await ctx.bot.send_message(chat.id, message
-                                           + Russian.self1_text)
+                                           + lang.self1_text)
             await ctx.bot.send_sticker(chat.id, sticker)
         else:
             db_target = target,
@@ -398,8 +398,7 @@ async def fisting(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     nickname = await check_username(user)
     logger.debug("Вызвана команда /fisting. Проверяю команду. Пользователь:"
                  f" {nickname}")
-    lang = await check_language(update, ctx, user,
-                                lvl=await check_exp(user) / 5)
+    lang = await check_language(update, ctx, user)
     message = lang.fisting_text
     sticker = ("CAACAgIAAxkBAAPNY8VZ8vZJwhn2GlF4AV-wlAJUXLYAAswUAAIK18lLGuxoKB"
                "7NTf8tBA")
@@ -411,8 +410,7 @@ async def deep(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     nickname = await check_username(user)
     logger.debug("Вызвана команда /deep. Проверяю команду. Пользователь: "
                  f"{nickname}")
-    lang = await check_language(update, ctx, user,
-                                lvl=await check_exp(user) / 5)
+    lang = await check_language(update, ctx, user)
     message = lang.deep_text
     sticker = ("CAACAgIAAxkBAAPcY8V976B2uJgTgKsYU4aU_UdEmXQAAq0SAAJCrclLV-Gg6S"
                "oCxPktBA")
@@ -424,8 +422,7 @@ async def warm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     nickname = await check_username(user)
     logger.debug("Вызвана команда /warm. Проверяю команду. Пользователь: "
                  f"{nickname}")
-    lang = await check_language(update, ctx, user,
-                                lvl=await check_exp(user) / 5)
+    lang = await check_language(update, ctx, user)
     message = lang.warm_text
     sticker = ("CAACAgIAAxkBAAPnY8V-KUYPoww3mzj53kFxwU43PMMAArsSAAJHIshLmXzom_"
                "gcydQtBA")
