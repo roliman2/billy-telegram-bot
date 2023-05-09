@@ -610,7 +610,7 @@ class Start:
     __logger.addHandler(__file)
     __logger.addHandler(__impt_file)
     __db = Database(f"sqlite+aiosqlite:///{__filename}.db")
-    __app = ApplicationBuilder().token(config.billy_test.token).build()
+    __app = ApplicationBuilder().token(config.billy.token).build()
     __start_cmd_handler = CommandHandler("start", start)
     __help_cmd_handler = CommandHandler("help", help_cmd)
     __profile_cmd_handler = CommandHandler("profile", profile)
