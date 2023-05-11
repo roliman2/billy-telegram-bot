@@ -1,4 +1,5 @@
-from telegram import User, Update, ChatMember, BotCommandScopeAllGroupChats
+from telegram import User, Update, ChatMember, BotCommandScopeAllGroupChats,\
+    BotCommandScopeAllPrivateChats
 from telegram.ext import ContextTypes, ApplicationBuilder, CommandHandler,\
     MessageHandler, filters
 from sys import platform
@@ -9,6 +10,7 @@ from sqlite3 import connect, OperationalError
 from databases import Database
 import config
 from language import Russian, Ukraine
+from random import randrange
 
 
 async def get_db_id(user: User) -> int:
@@ -38,7 +40,6 @@ async def check_username(user: User) -> str:
 # Проверка языка у пользователя
 async def check_language(
         update: Update,
-        _,
         user: User = None,
         member: ChatMember = None,
         lvl: int | float = None
@@ -176,7 +177,7 @@ async def command_error(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
     username = await check_username(user)
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     st.logger.debug(f"Користувач {username} ввел неизвестную команду. "
                     "Отправляю сообщение об ошибке")
     await ctx.bot.send_message(chat.id, lang.idk_command_text)
@@ -201,7 +202,7 @@ async def template(
     user = update.effective_user
     chat = update.effective_chat
     username = await check_username(user)
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     st.logger.debug("Вызван шаблон команд. Начинаю получать пользователей э"
                     "того чата/группы/канала. Користувач, который вызвал "
                     f"команду: {username}")
@@ -265,7 +266,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st.logger.debug("Вызвана команда /start. Проверяю команду. Користувач: "
                     f"{nickname}")
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     if chat.type == "private":
         st.logger.debug("Команда вызвана в личных сообщениях. Отправляю "
                         "сообщение")
@@ -281,7 +282,7 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st.logger.debug("Вызвана команда /help. Отправляю список команд. "
                     f"Користувач: {nickname}")
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     if chat.type == "private":
         await ctx.bot.send_message(chat.id, lang.no_here_text)
     else:
@@ -291,7 +292,7 @@ async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await message_sys(update, ctx)
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     if chat.type == "private":
         await ctx.bot.send_message(chat.id, lang.no_cmd_access_text)
     else:
@@ -375,6 +376,20 @@ async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await st.db.disconnect()
 
 
+async def cards(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await message_sys(update, ctx)
+    lang = await check_language(update)
+    random_numb = randrange(3)
+    if type(lang) is Ukraine:
+        file_lang = f"billy_data/billy_cards/{random_numb}_ukr.png"
+    elif type(lang) is Russian:
+        file_lang = f"billy_data/billy_cards/{random_numb}_rus.png"
+    else:
+        file_lang = f"billy_data/billy_cards/{random_numb}_eng.png"
+    with open(file_lang, "rb") as image:
+        await ctx.bot.send_photo(update.effective_chat.id, image.read())
+
+
 async def fisting(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     nickname = await check_username(user)
@@ -426,7 +441,7 @@ async def warm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def lvl_state(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await message_sys(update, ctx)
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     if chat.type == "private":
         await ctx.bot.send_message(chat.id, lang.no_cmd_access_text)
     else:
@@ -479,7 +494,7 @@ async def repeat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st.logger.debug("Вызвана команда /repeat. Проверяю команду. Користувач: "
                     f"{nickname}")
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     roli_id = 865151826
     polya_id = 853872563
     if user.id == roli_id or user.id == polya_id:
@@ -504,7 +519,7 @@ async def check_cmds(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st.logger.debug("Вызвана команда /hascmds. Проверяю команду. Користувач:"
                     f" {nickname}")
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     roli_id = 865151826
     if user.id == roli_id:
         st.logger.info("Хеллоу, роли. Проверяю меню с командами")
@@ -515,17 +530,20 @@ async def check_cmds(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.send_message(chat.id, lang.check_cmd_text)
             await ctx.bot.set_my_commands(
                 [
-                    ["help", lang.for_check_menu_text[0]]
-                ]
+                    ["help", lang.for_check_menu_text[0]],
+                    ["cards", lang.for_check_menu_text[3]]
+                ],
+                scope=BotCommandScopeAllPrivateChats()
             )
             await ctx.bot.set_my_commands(
                 [
                     ["help", lang.for_check_menu_text[0]],
                     ["profile", lang.for_check_menu_text[1]],
                     ["lvl", lang.for_check_menu_text[2]],
-                    ["fisting", lang.for_check_menu_text[3]],
-                    ["deep", lang.for_check_menu_text[4]],
-                    ["warm", lang.for_check_menu_text[5]]
+                    ["cards", lang.for_check_menu_text[3]],
+                    ["fisting", lang.for_check_menu_text[4]],
+                    ["deep", lang.for_check_menu_text[5]],
+                    ["warm", lang.for_check_menu_text[6]]
                 ],
                 scope=BotCommandScopeAllGroupChats()
             )
@@ -545,7 +563,7 @@ async def db_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat = update.effective_chat
     username = await check_username(user)
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     st.logger.info(f"Попытка сбросить таблицы. Користувач: {username}")
     if not any(ctx.args):
         st.logger.debug("Таблица не введена. Отправляю сообщение. "
@@ -576,7 +594,7 @@ async def test(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     st.logger.debug("Вызвана /test команда. Ничего интересного...zzz")
     user = update.effective_user
     chat = update.effective_chat
-    lang = await check_language(update, ctx)
+    lang = await check_language(update)
     if user.id == 865151826:
         await ctx.bot.send_message(update.effective_chat.id, update.message)
     else:
@@ -610,10 +628,12 @@ class Start:
     __logger.addHandler(__file)
     __logger.addHandler(__impt_file)
     __db = Database(f"sqlite+aiosqlite:///{__filename}.db")
+    # Replace "config.billy.token" to your
     __app = ApplicationBuilder().token(config.billy.token).build()
     __start_cmd_handler = CommandHandler("start", start)
     __help_cmd_handler = CommandHandler("help", help_cmd)
     __profile_cmd_handler = CommandHandler("profile", profile)
+    __cards_cmd_handler = CommandHandler("cards", cards)
     __fisting_cmd_handler = CommandHandler("fisting", fisting)
     __deep_cmd_handler = CommandHandler("deep", deep)
     __warm_cmd_handler = CommandHandler("warm", warm)
@@ -672,6 +692,7 @@ class Start:
                 self.__start_cmd_handler,
                 self.__help_cmd_handler,
                 self.__profile_cmd_handler,
+                self.__cards_cmd_handler,
                 self.__fisting_cmd_handler,
                 self.__deep_cmd_handler,
                 self.__warm_cmd_handler,
