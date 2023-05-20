@@ -8,7 +8,7 @@ This is currently my _main_ bot, and I am working on it
 
 It's Billy, but in Telegram! (as you can see from the name of the repository)
 
-He has a level system and several commands
+He has a level system, options and several commands
 
 ## List of commands
 * /start - Sending a message for users, who started the bot in first time
@@ -19,3 +19,4 @@ He has a level system and several commands
 * /fisting - Make a fisting to the user (when passing to a command)
 * /deep - Check a deep of the user (when passing to a command)
 * /warm - Feel a warm of the user (when passing to a command)
+* /options - Configure the bot in the group/channel
