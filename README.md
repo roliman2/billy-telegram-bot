@@ -1,7 +1,7 @@
 # Billy Telegram Bot
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/python-telegram-bot) ![GitHub issues](https://img.shields.io/github/issues/roma272007/billy-telegram-bot) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/roma272007/billy-telegram-bot) ![GitHub](https://img.shields.io/github/license/roma272007/billy-telegram-bot) ![Lines of code](https://img.shields.io/tokei/lines/github/roma272007/billy-telegram-bot)
 
-**_Official Bot - [@BillyHerringtonGodBot](http://t.me/BillyHerringtonGodBot)_** (_not working_ now)
+**_Official Bot - [@BillyHerringtonGodBot](http://t.me/BillyHerringtonGodBot)_**
 
 ## About
 This is currently my _main_ bot, and I am working on it
